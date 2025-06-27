@@ -32,7 +32,7 @@ import { createShowMemoryAction } from './useShowMemoryCommand.js';
 import { GIT_COMMIT_INFO } from '../../generated/git-commit.js';
 import { formatDuration, formatMemoryUsage } from '../utils/formatters.js';
 import { getCliVersion } from '../../utils/version.js';
-import { LoadedSettings } from '../../config/settings.js';
+import { LoadedSettings, SettingScope } from '../../config/settings.js';
 
 export interface SlashCommandActionReturn {
   shouldScheduleTool?: boolean;
@@ -798,6 +798,141 @@ export const useSlashCommandProcessor = (
           setTimeout(() => {
             process.exit(0);
           }, 100);
+        },
+      },
+      {
+        name: 'api',
+        description: 'manage custom API settings. Usage: /api <set|show|reset> [endpoint] [key] [model]',
+        action: async (_mainCommand, subCommand, args) => {
+          switch (subCommand) {
+            case 'set': {
+              if (!args) {
+                addMessage({
+                  type: MessageType.ERROR,
+                  content: 'Usage: /api set <endpoint> [api_key] [model]',
+                  timestamp: new Date(),
+                });
+                return;
+              }
+              const argParts = args.trim().split(/\s+/);
+              const endpoint = argParts[0];
+              const apiKey = argParts[1] || undefined;
+              const model = argParts[2] || undefined;
+              
+              if (!endpoint) {
+                addMessage({
+                  type: MessageType.ERROR,
+                  content: 'Please provide an API endpoint',
+                  timestamp: new Date(),
+                });
+                return;
+              }
+
+              // Validate endpoint format
+              try {
+                new URL(endpoint);
+              } catch {
+                addMessage({
+                  type: MessageType.ERROR,
+                  content: 'Please provide a valid URL endpoint',
+                  timestamp: new Date(),
+                });
+                return;
+              }
+
+              // Set custom API configuration in runtime config
+              config?.setCustomAPI(endpoint, apiKey, model);
+              
+              // Refresh the content generator to use the new custom API
+              try {
+                await config?.refreshContentGenerator();
+              } catch (error) {
+                addMessage({
+                  type: MessageType.ERROR,
+                  content: `Failed to initialize custom API: ${error}`,
+                  timestamp: new Date(),
+                });
+                return;
+              }
+              
+              // Save to settings file for persistence
+              try {
+                settings.setValue(SettingScope.User, 'customAPI', {
+                  endpoint,
+                  apiKey,
+                  model,
+                });
+                addMessage({
+                  type: MessageType.INFO,
+                  content: `Custom API endpoint set to: ${endpoint}${apiKey ? ' (with API key)' : ''}${model ? ` (model: ${model})` : ''}\nConfiguration saved to settings.`,
+                  timestamp: new Date(),
+                });
+              } catch (error) {
+                addMessage({
+                  type: MessageType.ERROR,
+                  content: `Custom API set but failed to save to settings: ${error}`,
+                  timestamp: new Date(),
+                });
+              }
+              return;
+            }
+            case 'show': {
+              const customAPI = config?.getCustomAPI();
+              if (customAPI?.endpoint) {
+                addMessage({
+                  type: MessageType.INFO,
+                  content: `Current custom API:\nEndpoint: ${customAPI.endpoint}\nAPI Key: ${customAPI.apiKey ? '[Set]' : '[Not set]'}\nModel: ${customAPI.model || '[Not set]'}`,
+                  timestamp: new Date(),
+                });
+              } else {
+                addMessage({
+                  type: MessageType.INFO,
+                  content: 'No custom API configured. Using default Google AI endpoint.',
+                  timestamp: new Date(),
+                });
+              }
+              return;
+            }
+            case 'reset': {
+              config?.resetCustomAPI();
+              
+              // Refresh the content generator to use the default configuration
+              try {
+                await config?.refreshContentGenerator();
+              } catch (error) {
+                addMessage({
+                  type: MessageType.ERROR,
+                  content: `Failed to reset to default configuration: ${error}`,
+                  timestamp: new Date(),
+                });
+                return;
+              }
+              
+              // Remove from settings file
+              try {
+                settings.setValue(SettingScope.User, 'customAPI', undefined);
+                addMessage({
+                  type: MessageType.INFO,
+                  content: 'Custom API configuration reset. Using default Google AI endpoint.\nSettings file updated.',
+                  timestamp: new Date(),
+                });
+              } catch (error) {
+                addMessage({
+                  type: MessageType.ERROR,
+                  content: `Custom API reset but failed to update settings: ${error}`,
+                  timestamp: new Date(),
+                });
+              }
+              return;
+            }
+            default:
+              addMessage({
+                type: MessageType.ERROR,
+                content: `Unknown /api command: ${subCommand}. Available: set, show, reset`,
+                timestamp: new Date(),
+              });
+              return;
+          }
         },
       },
       {

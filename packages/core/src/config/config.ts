@@ -93,6 +93,12 @@ export type FlashFallbackHandler = (
   fallbackModel: string,
 ) => Promise<boolean>;
 
+export interface CustomAPIConfig {
+  endpoint: string;
+  apiKey?: string;
+  model?: string;
+}
+
 export interface ConfigParameters {
   sessionId: string;
   embeddingModel?: string;
@@ -126,6 +132,7 @@ export interface ConfigParameters {
   bugCommand?: BugCommandSettings;
   model: string;
   extensionContextFilePaths?: string[];
+  customAPI?: CustomAPIConfig;
 }
 
 export class Config {
@@ -166,6 +173,7 @@ export class Config {
   private readonly extensionContextFilePaths: string[];
   private modelSwitchedDuringSession: boolean = false;
   flashFallbackHandler?: FlashFallbackHandler;
+  private customAPI?: CustomAPIConfig;
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId;
@@ -207,6 +215,7 @@ export class Config {
     this.bugCommand = params.bugCommand;
     this.model = params.model;
     this.extensionContextFilePaths = params.extensionContextFilePaths ?? [];
+    this.customAPI = params.customAPI;
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -256,6 +265,25 @@ export class Config {
     this.modelSwitchedDuringSession = false;
 
     // Note: In the future, we may want to reset any cached state when switching auth methods
+  }
+
+  async refreshContentGenerator() {
+    // This method refreshes the content generator without changing auth
+    // Useful when custom API settings change
+    if (!this.contentGeneratorConfig) {
+      throw new Error('Content generator config not initialized');
+    }
+
+    const contentConfig = await createContentGeneratorConfig(
+      this.contentGeneratorConfig.model,
+      this.contentGeneratorConfig.authType,
+      this,
+    );
+
+    const gc = new GeminiClient(this);
+    this.geminiClient = gc;
+    await gc.initialize(contentConfig);
+    this.contentGeneratorConfig = contentConfig;
   }
 
   getSessionId(): string {
@@ -444,6 +472,22 @@ export class Config {
 
   getExtensionContextFilePaths(): string[] {
     return this.extensionContextFilePaths;
+  }
+
+  setCustomAPI(endpoint: string, apiKey?: string, model?: string): void {
+    this.customAPI = {
+      endpoint,
+      apiKey,
+      model,
+    };
+  }
+
+  getCustomAPI(): CustomAPIConfig | undefined {
+    return this.customAPI;
+  }
+
+  resetCustomAPI(): void {
+    this.customAPI = undefined;
   }
 
   async getGitService(): Promise<GitService> {

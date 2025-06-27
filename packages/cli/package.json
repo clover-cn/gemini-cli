@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "node ../../scripts/build_package.js",
-    "clean": "rm -rf dist",
+    "clean":  "node -e \"require('fs').rmSync('./dist',{ recursive: true, force: true })\"",
     "start": "node dist/index.js",
     "debug": "node --inspect-brk dist/index.js",
     "lint": "eslint . --ext .ts,.tsx",

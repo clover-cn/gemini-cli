@@ -35,6 +35,12 @@ export interface AccessibilitySettings {
   disableLoadingPhrases?: boolean;
 }
 
+export interface CustomAPISettings {
+  endpoint?: string;
+  apiKey?: string;
+  model?: string;
+}
+
 export interface Settings {
   theme?: string;
   selectedAuthType?: AuthType;
@@ -54,6 +60,7 @@ export interface Settings {
   bugCommand?: BugCommandSettings;
   checkpointing?: CheckpointingSettings;
   autoConfigureMaxOldSpaceSize?: boolean;
+  customAPI?: CustomAPISettings;
 
   // Git-aware file filtering settings
   fileFiltering?: {
@@ -119,10 +126,10 @@ export class LoadedSettings {
   setValue(
     scope: SettingScope,
     key: keyof Settings,
-    value: string | Record<string, MCPServerConfig> | undefined,
+    value: string | Record<string, MCPServerConfig> | CustomAPISettings | undefined,
   ): void {
     const settingsFile = this.forScope(scope);
-    // @ts-expect-error - value can be string | Record<string, MCPServerConfig>
+    // @ts-expect-error - value can be string | Record<string, MCPServerConfig> | CustomAPISettings
     settingsFile.settings[key] = value;
     this._merged = this.computeMergedSettings();
     saveSettings(settingsFile);

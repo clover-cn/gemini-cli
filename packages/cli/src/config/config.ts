@@ -245,6 +245,11 @@ export async function loadCliConfig(
     bugCommand: settings.bugCommand,
     model: argv.model!,
     extensionContextFilePaths,
+    customAPI: settings.customAPI ? {
+      endpoint: settings.customAPI.endpoint!,
+      apiKey: settings.customAPI.apiKey,
+      model: settings.customAPI.model,
+    } : undefined,
   });
 }
 
