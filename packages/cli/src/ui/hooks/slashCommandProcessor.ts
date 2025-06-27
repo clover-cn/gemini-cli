@@ -915,6 +915,27 @@ export const useSlashCommandProcessor = (
               // Refresh the content generator to use the default configuration
               try {
                 await config?.refreshContentGenerator();
+                
+                // 确保重置后使用默认模型
+                if (config?.getContentGeneratorConfig()) {
+                  config.getContentGeneratorConfig().model = config.getModel();
+                }
+                
+                // Remove from settings file
+                try {
+                  settings.setValue(SettingScope.User, 'customAPI', undefined);
+                  addMessage({
+                    type: MessageType.INFO,
+                    content: 'Custom API configuration reset. Using default Google AI endpoint.\nSettings file updated.',
+                    timestamp: new Date(),
+                  });
+                } catch (error) {
+                  addMessage({
+                    type: MessageType.ERROR,
+                    content: `Custom API reset but failed to update settings: ${error}`,
+                    timestamp: new Date(),
+                  });
+                }
               } catch (error) {
                 addMessage({
                   type: MessageType.ERROR,
@@ -922,22 +943,6 @@ export const useSlashCommandProcessor = (
                   timestamp: new Date(),
                 });
                 return;
-              }
-              
-              // Remove from settings file
-              try {
-                settings.setValue(SettingScope.User, 'customAPI', undefined);
-                addMessage({
-                  type: MessageType.INFO,
-                  content: 'Custom API configuration reset. Using default Google AI endpoint.\nSettings file updated.',
-                  timestamp: new Date(),
-                });
-              } catch (error) {
-                addMessage({
-                  type: MessageType.ERROR,
-                  content: `Custom API reset but failed to update settings: ${error}`,
-                  timestamp: new Date(),
-                });
               }
               return;
             }
@@ -1215,3 +1220,4 @@ export const useSlashCommandProcessor = (
 
   return { handleSlashCommand, slashCommands, pendingHistoryItems };
 };
+

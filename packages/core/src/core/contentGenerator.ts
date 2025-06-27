@@ -78,6 +78,9 @@ export async function createContentGeneratorConfig(
     return contentGeneratorConfig;
   }
 
+  // 如果没有自定义API，确保使用默认的Google端点和模型
+  contentGeneratorConfig.model = model || DEFAULT_GEMINI_MODEL;
+  
   // if we are using google auth nothing else to validate for now
   if (authType === AuthType.LOGIN_WITH_GOOGLE_PERSONAL) {
     return contentGeneratorConfig;
@@ -378,3 +381,4 @@ function createCustomAPIContentGenerator(
     },
   };
 }
+

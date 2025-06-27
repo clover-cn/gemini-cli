@@ -544,3 +544,4 @@ export function createToolRegistry(config: Config): Promise<ToolRegistry> {
 
 // Export model constants for use in CLI
 export { DEFAULT_GEMINI_FLASH_MODEL };
+
