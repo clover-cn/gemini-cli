@@ -38,4 +38,4 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "同步完成！" -ForegroundColor Green
+Write-Host "同步完成！请执行:npm run build" -ForegroundColor Green
