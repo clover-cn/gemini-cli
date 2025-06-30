@@ -34,35 +34,42 @@ export class ShellTool extends BaseTool<ShellToolParams, ToolResult> {
   private whitelist: Set<string> = new Set();
 
   constructor(private readonly config: Config) {
-    const toolDisplayName = 'Shell';
-
-    let toolDescription: string;
-    let toolParameterSchema: Record<string, unknown>;
-
-    try {
-      const descriptionUrl = new URL('shell.md', import.meta.url);
-      toolDescription = fs.readFileSync(descriptionUrl, 'utf-8');
-      const schemaUrl = new URL('shell.json', import.meta.url);
-      toolParameterSchema = JSON.parse(fs.readFileSync(schemaUrl, 'utf-8'));
-    } catch {
-      // Fallback with minimal descriptions for tests when file reading fails
-      toolDescription = 'Execute shell commands';
-      toolParameterSchema = {
-        type: 'object',
-        properties: {
-          command: { type: 'string', description: 'Command to execute' },
-          description: { type: 'string', description: 'Command description' },
-          directory: { type: 'string', description: 'Working directory' },
-        },
-        required: ['command'],
-      };
-    }
-
     super(
       ShellTool.Name,
-      toolDisplayName,
-      toolDescription,
-      toolParameterSchema,
+      'Shell',
+      `This tool executes a given shell command as \`bash -c <command>\`. Command can start background processes using \`&\`. Command is executed as a subprocess that leads its own process group. Command process group can be terminated as \`kill -- -PGID\` or signaled as \`kill -s SIGNAL -- -PGID\`.
+
+The following information is returned:
+
+Command: Executed command.
+Directory: Directory (relative to project root) where command was executed, or \`(root)\`.
+Stdout: Output on stdout stream. Can be \`(empty)\` or partial on error and for any unwaited background processes.
+Stderr: Output on stderr stream. Can be \`(empty)\` or partial on error and for any unwaited background processes.
+Error: Error or \`(none)\` if no error was reported for the subprocess.
+Exit Code: Exit code or \`(none)\` if terminated by signal.
+Signal: Signal number or \`(none)\` if no signal was received.
+Background PIDs: List of background processes started or \`(none)\`.
+Process Group PGID: Process group started or \`(none)\``,
+      {
+        type: 'object',
+        properties: {
+          command: {
+            type: 'string',
+            description: 'Exact bash command to execute as `bash -c <command>`',
+          },
+          description: {
+            type: 'string',
+            description:
+              'Brief description of the command for the user. Be specific and concise. Ideally a single sentence. Can be up to 3 sentences for clarity. No line breaks.',
+          },
+          directory: {
+            type: 'string',
+            description:
+              '(OPTIONAL) Directory to run the command in, if not the project root directory. Must be relative to the project root directory and must already exist.',
+          },
+        },
+        required: ['command'],
+      },
       false, // output is not markdown
       true, // output can be updated
     );
@@ -91,7 +98,67 @@ export class ShellTool extends BaseTool<ShellToolParams, ToolResult> {
       .pop(); // take last part and return command root (or undefined if previous line was empty)
   }
 
+  isCommandAllowed(command: string): boolean {
+    const normalize = (cmd: string) => cmd.trim().replace(/\s+/g, ' ');
+
+    const extractCommands = (tools: string[]): string[] =>
+      tools.flatMap((tool) => {
+        if (tool.startsWith(`${ShellTool.name}(`) && tool.endsWith(')')) {
+          return [normalize(tool.slice(ShellTool.name.length + 1, -1))];
+        } else if (
+          tool.startsWith(`${ShellTool.Name}(`) &&
+          tool.endsWith(')')
+        ) {
+          return [normalize(tool.slice(ShellTool.Name.length + 1, -1))];
+        }
+        return [];
+      });
+
+    const coreTools = this.config.getCoreTools() || [];
+    const excludeTools = this.config.getExcludeTools() || [];
+
+    if (
+      excludeTools.includes(ShellTool.name) ||
+      excludeTools.includes(ShellTool.Name)
+    ) {
+      return false;
+    }
+
+    const blockedCommands = extractCommands(excludeTools);
+    const normalizedCommand = normalize(command);
+
+    if (blockedCommands.includes(normalizedCommand)) {
+      return false;
+    }
+
+    const hasSpecificCommands = coreTools.some(
+      (tool) =>
+        (tool.startsWith(`${ShellTool.name}(`) && tool.endsWith(')')) ||
+        (tool.startsWith(`${ShellTool.Name}(`) && tool.endsWith(')')),
+    );
+
+    if (hasSpecificCommands) {
+      // If the generic `ShellTool` is also present, it acts as a wildcard,
+      // allowing all commands (that are not explicitly blocked).
+      if (
+        coreTools.includes(ShellTool.name) ||
+        coreTools.includes(ShellTool.Name)
+      ) {
+        return true;
+      }
+
+      // Otherwise, we are in strict allow-list mode.
+      const allowedCommands = extractCommands(coreTools);
+      return allowedCommands.includes(normalizedCommand);
+    }
+
+    return true;
+  }
+
   validateToolParams(params: ShellToolParams): string | null {
+    if (!this.isCommandAllowed(params.command)) {
+      return `Command is not allowed: ${params.command}`;
+    }
     if (
       !SchemaValidator.validate(
         this.parameterSchema as Record<string, unknown>,
