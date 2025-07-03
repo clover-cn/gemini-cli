@@ -165,11 +165,11 @@ function convertGeminiToOpenAI(request: GenerateContentParameters, customModel?:
   if (request.contents) {
     // Handle array or single content
     const contentsArray = Array.isArray(request.contents) ? request.contents : [request.contents];
-    
+
     for (const content of contentsArray) {
       // Use any type to handle the complex union type
       const contentAny = content as any;
-      
+
       const message: any = {
         role: contentAny.role === 'user' ? 'user' : contentAny.role === 'model' ? 'assistant' : 'system',
         content: '',
@@ -207,6 +207,37 @@ function convertGeminiToOpenAI(request: GenerateContentParameters, customModel?:
     }
   }
 
+  // Handle tools conversion from Gemini format to OpenAI format
+  if (request.config?.tools && Array.isArray(request.config.tools)) {
+    const openAITools: any[] = [];
+
+    for (const toolGroup of request.config.tools) {
+      if (toolGroup && typeof toolGroup === 'object' && 'functionDeclarations' in toolGroup) {
+        const functionDeclarations = (toolGroup as any).functionDeclarations;
+
+        if (Array.isArray(functionDeclarations)) {
+          for (const funcDecl of functionDeclarations) {
+            if (funcDecl && funcDecl.name) {
+              const openAITool = {
+                type: 'function',
+                function: {
+                  name: funcDecl.name,
+                  description: funcDecl.description || '',
+                  parameters: funcDecl.parameters || { type: 'object', properties: {} }
+                }
+              };
+              openAITools.push(openAITool);
+            }
+          }
+        }
+      }
+    }
+
+    if (openAITools.length > 0) {
+      openAIRequest.tools = openAITools;
+    }
+  }
+
   return openAIRequest;
 }
 
@@ -225,14 +256,43 @@ function convertOpenAIToGemini(openAIResponse: any): GenerateContentResponse {
   if (openAIResponse.choices && openAIResponse.choices.length > 0) {
     const choice = openAIResponse.choices[0];
     const textContent = choice.message?.content || choice.delta?.content || '';
-    
+
+    const parts: any[] = [];
+
+    // Add text content if present
+    if (textContent) {
+      parts.push({ text: textContent });
+    }
+
+    // Handle function calls from OpenAI format
+    const functionCalls: any[] = [];
+    if (choice.message?.tool_calls && Array.isArray(choice.message.tool_calls)) {
+      for (const toolCall of choice.message.tool_calls) {
+        if (toolCall.type === 'function' && toolCall.function) {
+          const functionCall = {
+            name: toolCall.function.name,
+            args: {}
+          };
+
+          // Parse arguments if they exist
+          if (toolCall.function.arguments) {
+            try {
+              functionCall.args = JSON.parse(toolCall.function.arguments);
+            } catch (error) {
+              console.warn('Failed to parse function arguments:', toolCall.function.arguments);
+              functionCall.args = {};
+            }
+          }
+
+          functionCalls.push(functionCall);
+          parts.push({ functionCall });
+        }
+      }
+    }
+
     const candidate: any = {
       content: {
-        parts: [
-          {
-            text: textContent,
-          },
-        ],
+        parts,
         role: 'model',
       },
       finishReason: choice.finish_reason === 'stop' ? 'STOP' : 'OTHER',
@@ -243,9 +303,14 @@ function convertOpenAIToGemini(openAIResponse: any): GenerateContentResponse {
       (geminiResponse as any).candidates = [];
     }
     (geminiResponse as any).candidates.push(candidate);
-    
+
     // Set the text property for compatibility (use any cast to bypass readonly)
     (geminiResponse as any).text = textContent;
+
+    // Set function calls at the top level for compatibility
+    if (functionCalls.length > 0) {
+      (geminiResponse as any).functionCalls = functionCalls;
+    }
   }
 
   // Add usage information if available
