@@ -131,7 +131,7 @@ export async function createContentGenerator(
     return createCustomAPIContentGenerator(config.customAPI, httpOptions);
   }
   
-  if (config.authType === AuthType.LOGIN_WITH_GOOGLE_PERSONAL) {
+  if (config.authType === AuthType.LOGIN_WITH_GOOGLE) {
     return createCodeAssistContentGenerator(httpOptions, config.authType);
   }
 
