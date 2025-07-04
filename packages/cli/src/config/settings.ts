@@ -39,6 +39,8 @@ export interface CustomAPISettings {
   endpoint?: string;
   apiKey?: string;
   model?: string;
+  supportsTools?: boolean; // Whether the model supports function calling
+  fallbackMode?: 'text' | 'disabled'; // How to handle tool calls when not supported
 }
 
 export interface Settings {

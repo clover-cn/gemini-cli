@@ -101,6 +101,8 @@ export interface CustomAPIConfig {
   endpoint: string;
   apiKey?: string;
   model?: string;
+  supportsTools?: boolean; // Whether the model supports function calling
+  fallbackMode?: 'text' | 'disabled'; // How to handle tool calls when not supported
 }
 
 export interface ConfigParameters {
@@ -269,6 +271,25 @@ export class Config {
   async refreshContentGenerator() {
     // This method refreshes the content generator without changing auth
     // Useful when custom API settings change
+
+    // If we have a custom API, initialize with it
+    const customAPI = this.getCustomAPI();
+    if (customAPI?.endpoint) {
+      const contentConfig = await createContentGeneratorConfig(
+        this.model,
+        undefined, // No auth type needed for custom API
+        this,
+      );
+
+      const gc = new GeminiClient(this);
+      this.geminiClient = gc;
+      this.toolRegistry = await createToolRegistry(this);
+      await gc.initialize(contentConfig);
+      this.contentGeneratorConfig = contentConfig;
+      return;
+    }
+
+    // For non-custom API, require existing config
     if (!this.contentGeneratorConfig) {
       throw new Error('Content generator config not initialized');
     }
@@ -281,6 +302,7 @@ export class Config {
 
     const gc = new GeminiClient(this);
     this.geminiClient = gc;
+    this.toolRegistry = await createToolRegistry(this);
     await gc.initialize(contentConfig);
     this.contentGeneratorConfig = contentConfig;
   }
@@ -473,11 +495,13 @@ export class Config {
     return this.extensionContextFilePaths;
   }
 
-  setCustomAPI(endpoint: string, apiKey?: string, model?: string): void {
+  setCustomAPI(endpoint: string, apiKey?: string, model?: string, supportsTools?: boolean, fallbackMode?: 'text' | 'disabled'): void {
     this.customAPI = {
       endpoint,
       apiKey,
       model,
+      supportsTools,
+      fallbackMode: fallbackMode || 'text', // Default to text fallback
     };
   }
 

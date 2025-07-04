@@ -868,7 +868,7 @@ export const useSlashCommandProcessor = (
               if (!args) {
                 addMessage({
                   type: MessageType.ERROR,
-                  content: 'Usage: /api set <endpoint> [api_key] [model]',
+                  content: 'Usage: /api set <endpoint> [api_key] [model] [supports_tools=auto] [fallback_mode=text]\n  supports_tools: true/false/auto (auto detects)\n  fallback_mode: text/disabled (how to handle tools when not supported)',
                   timestamp: new Date(),
                 });
                 return;
@@ -877,6 +877,21 @@ export const useSlashCommandProcessor = (
               const endpoint = argParts[0];
               const apiKey = argParts[1] || undefined;
               const model = argParts[2] || undefined;
+              const supportsToolsArg = argParts[3] || 'auto';
+              const fallbackModeArg = argParts[4] || 'text';
+
+              // Parse supports_tools parameter
+              let supportsTools: boolean | undefined;
+              if (supportsToolsArg === 'true') {
+                supportsTools = true;
+              } else if (supportsToolsArg === 'false') {
+                supportsTools = false;
+              } else {
+                supportsTools = undefined; // auto-detect
+              }
+
+              // Parse fallback_mode parameter
+              const fallbackMode: 'text' | 'disabled' = fallbackModeArg === 'disabled' ? 'disabled' : 'text';
               
               if (!endpoint) {
                 addMessage({
@@ -900,7 +915,7 @@ export const useSlashCommandProcessor = (
               }
 
               // Set custom API configuration in runtime config
-              config?.setCustomAPI(endpoint, apiKey, model);
+              config?.setCustomAPI(endpoint, apiKey, model, supportsTools, fallbackMode);
               
               // Refresh the content generator to use the new custom API
               try {
@@ -920,10 +935,12 @@ export const useSlashCommandProcessor = (
                   endpoint,
                   apiKey,
                   model,
+                  supportsTools,
+                  fallbackMode,
                 });
                 addMessage({
                   type: MessageType.INFO,
-                  content: `Custom API endpoint set to: ${endpoint}${apiKey ? ' (with API key)' : ''}${model ? ` (model: ${model})` : ''}\nConfiguration saved to settings.`,
+                  content: `Custom API endpoint set to: ${endpoint}${apiKey ? ' (with API key)' : ''}${model ? ` (model: ${model})` : ''}\nTool support: ${supportsTools === undefined ? 'auto-detect' : supportsTools ? 'enabled' : 'disabled'}\nFallback mode: ${fallbackMode}\nConfiguration saved to settings.`,
                   timestamp: new Date(),
                 });
               } catch (error) {
@@ -940,7 +957,7 @@ export const useSlashCommandProcessor = (
               if (customAPI?.endpoint) {
                 addMessage({
                   type: MessageType.INFO,
-                  content: `Current custom API:\nEndpoint: ${customAPI.endpoint}\nAPI Key: ${customAPI.apiKey ? '[Set]' : '[Not set]'}\nModel: ${customAPI.model || '[Not set]'}`,
+                  content: `Current custom API:\nEndpoint: ${customAPI.endpoint}\nAPI Key: ${customAPI.apiKey ? '[Set]' : '[Not set]'}\nModel: ${customAPI.model || '[Not set]'}\nTool support: ${customAPI.supportsTools === undefined ? 'auto-detect' : customAPI.supportsTools ? 'enabled' : 'disabled'}\nFallback mode: ${customAPI.fallbackMode || 'text'}`,
                   timestamp: new Date(),
                 });
               } else {
