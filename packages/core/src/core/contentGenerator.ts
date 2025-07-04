@@ -17,47 +17,7 @@ import { createCodeAssistContentGenerator } from '../code_assist/codeAssist.js';
 import { DEFAULT_GEMINI_MODEL } from '../config/models.js';
 import { getEffectiveModel } from './modelCheck.js';
 
-// Helper function to generate a summary response when tool responses are present
-function generateToolResponseSummary(request: GenerateContentParameters): GenerateContentResponse {
-  const contentsArray = Array.isArray(request.contents) ? request.contents : [request.contents];
 
-  // Extract tool responses and create a summary
-  const toolResponses: string[] = [];
-  for (const content of contentsArray) {
-    const contentAny = content as any;
-    if (contentAny?.parts) {
-      for (const part of contentAny.parts) {
-        if (part.functionResponse) {
-          const funcResp = part.functionResponse;
-          const responseContent = funcResp.response?.output ||
-                                funcResp.response?.content ||
-                                JSON.stringify(funcResp.response || {});
-          toolResponses.push(`Tool ${funcResp.name} executed successfully. Result: ${responseContent}`);
-        }
-      }
-    }
-  }
-
-  const summaryText = toolResponses.length > 0
-    ? toolResponses.join('\n\n')
-    : 'Tool execution completed successfully.';
-
-  return {
-    text: summaryText,
-    data: undefined,
-    functionCalls: undefined,
-    executableCode: undefined,
-    codeExecutionResult: undefined,
-    candidates: [{
-      content: {
-        parts: [{ text: summaryText }],
-        role: 'model'
-      },
-      finishReason: 'STOP' as any,
-      index: 0
-    }]
-  };
-}
 
 // Helper function to parse text-based tool calls
 function parseTextBasedToolCall(text: string): { tool_name: string; parameters: any } | null {
@@ -318,6 +278,9 @@ function convertGeminiToOpenAI(request: GenerateContentParameters, customModel?:
     stream: false,
   };
 
+  // Track tool call IDs to ensure proper matching
+  const toolCallIdMap = new Map<string, string>();
+
   // Convert contents to messages
   if (request.contents) {
     // Handle array or single content
@@ -343,8 +306,13 @@ function convertGeminiToOpenAI(request: GenerateContentParameters, customModel?:
             textParts.push(part.text);
           } else if (part.functionCall) {
             // Convert Gemini function call to OpenAI tool call format
+            const toolCallId = `call_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+            // Store mapping for function call name to tool call ID
+            if (part.functionCall.name) {
+              toolCallIdMap.set(part.functionCall.name, toolCallId);
+            }
             toolCalls.push({
-              id: `call_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+              id: toolCallId,
               type: 'function',
               function: {
                 name: part.functionCall.name,
@@ -356,8 +324,18 @@ function convertGeminiToOpenAI(request: GenerateContentParameters, customModel?:
             const responseContent = part.functionResponse.response?.output ||
                                   part.functionResponse.response?.content ||
                                   JSON.stringify(part.functionResponse.response || {});
+
+            // Try to match tool call ID from the map, fallback to provided ID or generate one
+            let toolCallId = part.functionResponse.id;
+            if (!toolCallId && part.functionResponse.name) {
+              toolCallId = toolCallIdMap.get(part.functionResponse.name);
+            }
+            if (!toolCallId) {
+              toolCallId = `call_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+            }
+
             toolResponses.push({
-              tool_call_id: part.functionResponse.id || `call_${Date.now()}`,
+              tool_call_id: toolCallId,
               role: 'tool',
               name: part.functionResponse.name,
               content: typeof responseContent === 'string' ? responseContent : JSON.stringify(responseContent)
@@ -375,13 +353,27 @@ function convertGeminiToOpenAI(request: GenerateContentParameters, customModel?:
         if (toolResponses.length > 0) {
           if (supportsTools !== false) {
             // Standard tool response handling for APIs that support tools
-            // First add the current message if it has content or tool calls
-            if (message.content || message.tool_calls) {
-              openAIRequest.messages.push(message);
-            }
-            // Then add tool response messages
-            for (const toolResponse of toolResponses) {
-              openAIRequest.messages.push(toolResponse);
+            // If we have both tool calls and tool responses in the same content,
+            // we need to split them into separate messages to maintain proper sequence
+            if (message.tool_calls && message.tool_calls.length > 0) {
+              // First add the assistant message with tool calls (without tool responses)
+              const assistantMessage = {
+                role: 'assistant',
+                content: message.content || '',
+                tool_calls: message.tool_calls
+              };
+              openAIRequest.messages.push(assistantMessage);
+
+              // Then add tool response messages
+              for (const toolResponse of toolResponses) {
+                openAIRequest.messages.push(toolResponse);
+              }
+            } else {
+              // If no tool calls in this message, just add tool responses
+              // This might be a case where tool responses are in a separate content block
+              for (const toolResponse of toolResponses) {
+                openAIRequest.messages.push(toolResponse);
+              }
             }
             // Skip adding the message again below
             continue;
@@ -392,9 +384,13 @@ function convertGeminiToOpenAI(request: GenerateContentParameters, customModel?:
               `Tool ${tr.name} result: ${tr.content}`
             ).join('\n\n');
 
-            // Add the current message if it has content or tool calls
-            if (message.content || message.tool_calls) {
-              openAIRequest.messages.push(message);
+            // Add the current message if it has content, but NEVER include tool_calls for non-supporting APIs
+            if (message.content) {
+              const messageWithoutToolCalls = {
+                role: message.role,
+                content: message.content
+              };
+              openAIRequest.messages.push(messageWithoutToolCalls);
             }
 
             // Add tool results as a user message
@@ -413,7 +409,16 @@ function convertGeminiToOpenAI(request: GenerateContentParameters, customModel?:
       }
 
       if (message.content) {
-        openAIRequest.messages.push(message);
+        // For APIs that don't support tools, ensure we never include tool_calls
+        if (supportsTools === false && message.tool_calls) {
+          const messageWithoutToolCalls = {
+            role: message.role,
+            content: message.content
+          };
+          openAIRequest.messages.push(messageWithoutToolCalls);
+        } else {
+          openAIRequest.messages.push(message);
+        }
       }
     }
   }
@@ -614,17 +619,6 @@ function createCustomAPIContentGenerator(
 ): ContentGenerator {
   return {
     async generateContent(request: GenerateContentParameters): Promise<GenerateContentResponse> {
-      // Check if this request contains tool responses (function responses)
-      const contentsArray = Array.isArray(request.contents) ? request.contents : [request.contents];
-      const hasToolResponses = contentsArray.some((content: any) =>
-        content?.parts?.some((part: any) => part.functionResponse)
-      );
-
-      // If request contains tool responses, generate a summary response instead of calling API
-      if (hasToolResponses) {
-        return generateToolResponseSummary(request);
-      }
-
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...httpOptions.headers,
@@ -687,11 +681,11 @@ function createCustomAPIContentGenerator(
         'Accept': 'text/event-stream',
         ...httpOptions.headers,
       };
-      
+
       if (customAPI.apiKey) {
         headers['Authorization'] = `Bearer ${customAPI.apiKey}`;
       }
-      
+
       // Convert Gemini request to OpenAI format and enable streaming
       const openAIRequest = convertGeminiToOpenAI(request, customAPI.model, customAPI.supportsTools, customAPI.fallbackMode);
       openAIRequest.stream = true;
@@ -710,7 +704,10 @@ function createCustomAPIContentGenerator(
                            errorText.includes('tool') ||
                            errorText.includes('schema') ||
                            errorText.includes('anyOf') ||
-                           errorText.includes('INTEGER');
+                           errorText.includes('INTEGER') ||
+                           errorText.includes('tool_calls') ||
+                           errorText.includes('tool_call_id') ||
+                           errorText.includes('insufficient tool messages');
 
         // If it's a tool-related error and we haven't tried fallback yet
         if (isToolError && customAPI.supportsTools !== false && customAPI.fallbackMode !== 'disabled') {
@@ -762,7 +759,7 @@ function createCustomAPIContentGenerator(
       };
     },
     
-    async embedContent(request: EmbedContentParameters): Promise<EmbedContentResponse> {
+    async embedContent(_request: EmbedContentParameters): Promise<EmbedContentResponse> {
       // Custom API embedding not implemented
       throw new Error('Embedding not supported for custom APIs');
     },
