@@ -35,5 +35,10 @@ export const validateAuthMethod = (authMethod: string): string | null => {
     return null;
   }
 
+  if (authMethod === AuthType.CUSTOM_API) {
+    // Custom API validation will be handled in the dialog
+    return null;
+  }
+
   return 'Invalid auth method selected.';
 };

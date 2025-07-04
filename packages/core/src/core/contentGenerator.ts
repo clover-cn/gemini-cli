@@ -192,6 +192,7 @@ export enum AuthType {
   LOGIN_WITH_GOOGLE = 'oauth-personal',
   USE_GEMINI = 'gemini-api-key',
   USE_VERTEX_AI = 'vertex-ai',
+  CUSTOM_API = 'custom-api',
 }
 
 export type ContentGeneratorConfig = {
@@ -228,7 +229,7 @@ export async function createContentGeneratorConfig(
   
   // Check for custom API configuration - if present, return immediately
   const customAPI = config?.getCustomAPI?.();
-  if (customAPI?.endpoint) {
+  if (customAPI?.endpoint || authType === AuthType.CUSTOM_API) {
     contentGeneratorConfig.customAPI = customAPI;
     // When using custom API, return early without other auth validation
     return contentGeneratorConfig;

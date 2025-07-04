@@ -51,6 +51,21 @@ export const useAuthCommand = (
         return;
       }
 
+      // Handle custom API authentication
+      if (authType === AuthType.CUSTOM_API) {
+        try {
+          setIsAuthenticating(true);
+          await config.refreshContentGenerator();
+          console.log('Authenticated via "custom-api".');
+        } catch (e) {
+          setAuthError(`Failed to initialize custom API. Message: ${getErrorMessage(e)}`);
+          openAuthDialog();
+        } finally {
+          setIsAuthenticating(false);
+        }
+        return;
+      }
+
       try {
         setIsAuthenticating(true);
         await config.refreshAuth(authType);
@@ -69,7 +84,10 @@ export const useAuthCommand = (
   const handleAuthSelect = useCallback(
     async (authType: AuthType | undefined, scope: SettingScope) => {
       if (authType) {
-        await clearCachedCredentialFile();
+        // Only clear cached credentials for non-custom API auth types
+        if (authType !== AuthType.CUSTOM_API) {
+          await clearCachedCredentialFile();
+        }
         settings.setValue(scope, 'selectedAuthType', authType);
       }
       setIsAuthDialogOpen(false);

@@ -9,27 +9,33 @@ import { Box, Text, useInput } from 'ink';
 import { Colors } from '../colors.js';
 import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
 import { LoadedSettings, SettingScope } from '../../config/settings.js';
-import { AuthType } from '@google/gemini-cli-core';
+import { AuthType, Config } from '@google/gemini-cli-core';
 import { validateAuthMethod } from '../../config/auth.js';
+import { CustomAPIDialog } from './CustomAPIDialog.js';
 
 interface AuthDialogProps {
   onSelect: (authMethod: AuthType | undefined, scope: SettingScope) => void;
   settings: LoadedSettings;
+  config: Config;
   initialErrorMessage?: string | null;
 }
 
 export function AuthDialog({
   onSelect,
   settings,
+  config,
   initialErrorMessage,
 }: AuthDialogProps): React.JSX.Element {
   const [errorMessage, setErrorMessage] = useState<string | null>(
     initialErrorMessage || null,
   );
+  const [showCustomAPIDialog, setShowCustomAPIDialog] = useState(false);
+
   const items = [
     { label: 'Login with Google', value: AuthType.LOGIN_WITH_GOOGLE },
     { label: 'Gemini API Key (AI Studio)', value: AuthType.USE_GEMINI },
     { label: 'Vertex AI', value: AuthType.USE_VERTEX_AI },
+    { label: 'Custom API', value: AuthType.CUSTOM_API },
   ];
 
   let initialAuthIndex = items.findIndex(
@@ -41,6 +47,11 @@ export function AuthDialog({
   }
 
   const handleAuthSelect = (authMethod: AuthType) => {
+    if (authMethod === AuthType.CUSTOM_API) {
+      setShowCustomAPIDialog(true);
+      return;
+    }
+
     const error = validateAuthMethod(authMethod);
     if (error) {
       setErrorMessage(error);
@@ -50,7 +61,19 @@ export function AuthDialog({
     }
   };
 
+  const handleCustomAPIComplete = (success: boolean) => {
+    setShowCustomAPIDialog(false);
+    if (success) {
+      setErrorMessage(null);
+      onSelect(AuthType.CUSTOM_API, SettingScope.User);
+    }
+  };
+
   useInput((_input, key) => {
+    if (showCustomAPIDialog) {
+      return; // Let CustomAPIDialog handle input
+    }
+
     if (key.escape) {
       if (settings.merged.selectedAuthType === undefined) {
         // Prevent exiting if no auth method is set
@@ -62,6 +85,16 @@ export function AuthDialog({
       onSelect(undefined, SettingScope.User);
     }
   });
+
+  if (showCustomAPIDialog) {
+    return (
+      <CustomAPIDialog
+        onComplete={handleCustomAPIComplete}
+        settings={settings}
+        config={config}
+      />
+    );
+  }
 
   return (
     <Box

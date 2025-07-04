@@ -674,6 +674,7 @@ const App = ({ config, settings, startupWarnings = [] }: AppProps) => {
               <AuthDialog
                 onSelect={handleAuthSelect}
                 settings={settings}
+                config={config}
                 initialErrorMessage={authError}
               />
             </Box>
