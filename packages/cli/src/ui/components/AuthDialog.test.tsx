@@ -8,10 +8,17 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect, vi } from 'vitest';
 import { AuthDialog } from './AuthDialog.js';
 import { LoadedSettings, SettingScope } from '../../config/settings.js';
-import { AuthType } from '@google/gemini-cli-core';
+import { AuthType, Config } from '@google/gemini-cli-core';
 
 describe('AuthDialog', () => {
   const wait = (ms = 50) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Mock config object
+  const mockConfig = {
+    setCustomAPI: vi.fn(),
+    getCustomAPI: vi.fn(() => undefined),
+    refreshContentGenerator: vi.fn(),
+  } as unknown as Config;
 
   it('should show an error if the initial auth type is invalid', () => {
     const settings: LoadedSettings = new LoadedSettings(
@@ -32,6 +39,7 @@ describe('AuthDialog', () => {
       <AuthDialog
         onSelect={() => {}}
         settings={settings}
+        config={mockConfig}
         initialErrorMessage="GEMINI_API_KEY  environment variable not found"
       />,
     );
@@ -58,7 +66,7 @@ describe('AuthDialog', () => {
     );
 
     const { lastFrame, stdin, unmount } = render(
-      <AuthDialog onSelect={onSelect} settings={settings} />,
+      <AuthDialog onSelect={onSelect} settings={settings} config={mockConfig} />,
     );
     await wait();
 
@@ -91,7 +99,7 @@ describe('AuthDialog', () => {
     );
 
     const { stdin, unmount } = render(
-      <AuthDialog onSelect={onSelect} settings={settings} />,
+      <AuthDialog onSelect={onSelect} settings={settings} config={mockConfig} />,
     );
     await wait();
 

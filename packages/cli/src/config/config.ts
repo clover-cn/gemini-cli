@@ -250,6 +250,8 @@ export async function loadCliConfig(
       endpoint: settings.customAPI.endpoint!,
       apiKey: settings.customAPI.apiKey,
       model: settings.customAPI.model,
+      supportsTools: settings.customAPI.supportsTools,
+      fallbackMode: settings.customAPI.fallbackMode || 'text',
     } : undefined,
   });
 }
