@@ -1,7 +1,7 @@
 {
-  "name": "@google/gemini-cli",
+  "name": "gemini-plus",
   "version": "0.1.9",
-  "description": "Gemini CLI",
+  "description": "Gemini Plus CLI",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/google-gemini/gemini-cli.git"
@@ -9,7 +9,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "gemini": "dist/index.js"
+    "gemini-plus": "dist/index.js"
   },
   "scripts": {
     "build": "node ../../scripts/build_package.js",

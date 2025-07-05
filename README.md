@@ -1,142 +1,170 @@
-# Gemini CLI
+# 自定义API  MCP工具函数兼容性修改
 
-[![Gemini CLI CI](https://github.com/google-gemini/gemini-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/google-gemini/gemini-cli/actions/workflows/ci.yml)
 
-![Gemini CLI Screenshot](./docs/assets/gemini-screenshot.png)
 
-This repository contains the Gemini CLI, a command-line AI workflow tool that connects to your
-tools, understands your code and accelerates your workflows.
+## 🔧 解决方案
 
-With the Gemini CLI you can:
+现在，即使是不支持MCP工具函数的模型也能正常使用Gemini CLI的所有功能！
 
-- Query and edit large codebases in and beyond Gemini's 1M token context window.
-- Generate new apps from PDFs or sketches, using Gemini's multimodal capabilities.
-- Automate operational tasks, like querying pull requests or handling complex rebases.
-- Use tools and MCP servers to connect new capabilities, including [media generation with Imagen,
-  Veo or Lyria](https://github.com/GoogleCloudPlatform/vertex-ai-creative-studio/tree/main/experiments/mcp-genmedia)
-- Ground your queries with the [Google Search](https://ai.google.dev/gemini-api/docs/grounding)
-  tool, built in to Gemini.
+### 核心功能
 
-## Quickstart
+1. **工具函数支持检测** - 可以配置模型是否支持工具函数
+2. **智能降级处理** - 当模型不支持工具函数时，自动转换为文本提示
+3. **错误自动重试** - 检测到工具函数错误时自动重试
+4. **灵活配置选项** - 支持多种配置模式
 
-1. **Prerequisites:** Ensure you have [Node.js version 18](https://nodejs.org/en/download) or higher installed.
-2. **Run the CLI:** Execute the following command in your terminal:
+## 📦 安装指南
 
-   ```bash
-   npx https://github.com/google-gemini/gemini-cli
-   ```
+### 系统要求
 
-   Or install it with:
+- Node.js >= 18.0.0
+- npm（随 Node.js 一起安装）
 
-   ```bash
-   npm install -g @google/gemini-cli
-   gemini
-   ```
+### 快速安装
 
-3. **Pick a color theme**
-4. **Authenticate:** When prompted, sign in with your personal Google account. This will grant you up to 60 model requests per minute and 1,000 model requests per day using Gemini.
+#### 方法一：使用 npm（推荐）
 
-You are now ready to use the Gemini CLI!
-
-### Use a Gemini API key:
-
-The Gemini API provides a free tier with [100 requests per day](https://ai.google.dev/gemini-api/docs/rate-limits#free-tier) using Gemini 2.5 Pro, control over which model you use, and access to higher rate limits (with a paid plan):
-
-1. Generate a key from [Google AI Studio](https://aistudio.google.com/apikey).
-2. Set it as an environment variable in your terminal. Replace `YOUR_API_KEY` with your generated key.
-
-   ```bash
-   export GEMINI_API_KEY="YOUR_API_KEY"
-   ```
-
-3. (Optionally) Upgrade your Gemini API project to a paid plan on the API key page (will automatically unlock [Tier 1 rate limits](https://ai.google.dev/gemini-api/docs/rate-limits#tier-1))
-
-For other authentication methods, including Google Workspace accounts, see the [authentication](./docs/cli/authentication.md) guide.
-
-## Examples
-
-Once the CLI is running, you can start interacting with Gemini from your shell.
-
-You can start a project from a new directory:
-
-```sh
-cd new-project/
-gemini
-> Write me a Gemini Discord bot that answers questions using a FAQ.md file I will provide
-```
-
-Or work with an existing project:
-
-```sh
-git clone https://github.com/google-gemini/gemini-cli
+```bash
+# 克隆仓库
+git clone https://github.com/clover-cn/gemini-cli.git
 cd gemini-cli
-gemini
-> Give me a summary of all of the changes that went in yesterday
+
+# 安装依赖
+npm install
+
+# 构建项目
+npm run bundle
+
+# 全局安装
+npm install -g .
 ```
 
-### Next steps
 
-- Learn how to [contribute to or build from the source](./CONTRIBUTING.md).
-- Explore the available **[CLI Commands](./docs/cli/commands.md)**.
-- If you encounter any issues, review the **[Troubleshooting guide](./docs/troubleshooting.md)**.
-- For more comprehensive documentation, see the [full documentation](./docs/index.md).
-- Take a look at some [popular tasks](#popular-tasks) for more inspiration.
 
-### Troubleshooting
+#### 方法二：使用安装脚本
 
-Head over to the [troubleshooting](docs/troubleshooting.md) guide if you're
-having issues.
-
-## Popular tasks
-
-### Explore a new codebase
-
-Start by `cd`ing into an existing or newly-cloned repository and running `gemini`.
-
-```text
-> Describe the main pieces of this system's architecture.
+**Linux/macOS:**
+```bash
+chmod +x install.sh
+./install.sh
 ```
 
-```text
-> What security mechanisms are in place?
+**Windows (命令提示符):**
+```cmd
+install.bat
 ```
 
-### Work with your existing code
-
-```text
-> Implement a first draft for GitHub issue #123.
+**Windows (PowerShell):**
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+.\install.ps1
 ```
 
-```text
-> Help me migrate this codebase to the latest version of Java. Start with a plan.
+### 验证安装
+
+安装完成后，验证 CLI 是否正常工作：
+
+```bash
+# 检查版本
+gemini-plus --version
+
+# 显示帮助
+gemini-plus --help
+
+# 启动 CLI
+gemini-plus
 ```
 
-### Automate your workflows
+### 卸载
 
-Use MCP servers to integrate your local system tools with your enterprise collaboration suite.
+要卸载全局包：
 
-```text
-> Make me a slide deck showing the git history from the last 7 days, grouped by feature and team member.
+```bash
+npm uninstall -g gemini-plus
 ```
 
-```text
-> Make a full-screen web app for a wall display to show our most interacted-with GitHub issues.
+### 故障排除
+
+#### 找不到命令
+如果遇到"找不到命令"错误，请确保：
+1. 安装成功完成
+2. npm 全局 bin 目录在您的 PATH 中
+3. 尝试重启终端
+
+#### 权限错误
+在 Linux/macOS 上，您可能需要使用 `sudo` 进行全局安装：
+```bash
+sudo npm install -g .
 ```
 
-### Interact with your system
+或者配置 npm 使用不同的全局包目录。
 
-```text
-> Convert all the images in this directory to png, and rename them to use dates from the exif data.
+### 开发模式
+
+对于开发目的，您也可以直接运行 CLI：
+
+```bash
+# 从源码运行
+npm start
+
+# 或运行构建的包
+node bundle/gemini-plus.js
 ```
 
-```text
-> Organise my PDF invoices by month of expenditure.
+### 与原版的区别
+
+此分支已修改为：
+- 包名从 `@google/gemini-cli` 改为 `gemini-plus`
+- 命令名从 `gemini` 改为 `gemini-plus`
+- 更新构建配置以生成 `gemini-plus.js` 而不是 `gemini.js`
+- 为不同平台添加了便捷的安装脚本
+
+## 🚀 使用方法
+
+### 1. 基本命令格式
+```bash
+/api set <endpoint> [api_key] [model] [supports_tools] [fallback_mode]
 ```
 
-### Uninstall
+### 2. 使用示例
 
-Head over to the [Uninstall](docs/Uninstall.md) guide for uninstallation instructions.
+#### 设置支持工具函数的API（如OpenAI）
+```bash
+/api set https://api.openai.com/v1/chat/completions sk-your-key gpt-4 true text
+```
 
-## Terms of Service and Privacy Notice
+#### 设置不支持工具函数的API（如某些开源模型）
+```bash
+/api set https://api.siliconflow.cn/v1/chat/completions sk-your-key deepseek-ai/DeepSeek-V3 false text
+```
 
-For details on the terms of service and privacy notice applicable to your use of Gemini CLI, see the [Terms of Service and Privacy Notice](./docs/tos-privacy.md).
+#### 设置自动检测的API（推荐）
+```bash
+/api set http://localhost:11434/v1/chat/completions "" llama2 auto text
+```
+
+#### 设置禁用工具函数的API
+```bash
+/api set https://api.example.com/v1/chat/completions key model false disabled
+```
+
+### 3. 查看当前配置
+```bash
+/api show
+```
+
+### 4. 清除自定义端点
+
+```bash
+/api reset
+```
+
+### 5. 切换回Google账号使用
+
+```bash
+// 1.先清除自定义端点
+/api reset
+
+// 2.切换Google账号或者其他即可
+/auth
+```
